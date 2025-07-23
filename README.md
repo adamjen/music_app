@@ -35,8 +35,6 @@ All projects require a modern web browser with support for:
 - JavaScript ES6+
 - WebGL capabilities
 
-Some projects may have additional requirements:
-- Node.js and npm for build tools
 - Specific APIs or services
 
 ### Setup Instructions
@@ -49,15 +47,12 @@ Some projects may have additional requirements:
    ```
    cd music-visualizer
    ```
-3. Install dependencies (if any):
+3. Open index.html in a modern web browser with WebGL support:
    ```
-   npm install
+   open index.html  # or double-click on the file in your file explorer
    ```
-4. Run the development server:
-   ```
-   npm start
-   ```
-5. Access the visualizer at `http://localhost:8080`
+
+Note: This project does not require npm or any build tools as it uses only standard web APIs available in modern browsers.
 
 ## Project Structure
 
