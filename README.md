@@ -1,28 +1,24 @@
-# Website Projects Documentation
+# Interactive Music Visualizer Project
 
-Welcome to the documentation for our collection of creative HTML website projects! This repository contains implementations of innovative web technologies demonstrating various interactive features.
+Welcome to the Interactive Music Visualizer project! This repository contains a web-based application that creates dynamic visualizations synchronized with audio in real-time using WebGL shaders and the Web Audio API.
 
 ## Project Overview
 
-This collection includes five distinct website ideas, each showcasing different web technologies and creative features:
+The Interactive Music Visualizer transforms music into captivating visual patterns. It analyzes the audio frequency spectrum and generates responsive light patterns using WebGL shaders.
 
-1. [Interactive Particle Simulator](#interactive-particle-simulator)
-2. [Dynamic Data Visualization Dashboard](#dynamic-data-visualization-dashboard)
-3. [Procedural Landscape Generator](#procedural-landscape-generator)
-4. [AI-Powered Chatbot Interface](#ai-powered-chatbot-interface)
-5. [Interactive Music Visualizer](#interactive-music-visualizer)
+### Key Features
+
+- **Real-Time Audio Analysis**: Using Web Audio API
+- **Dynamic Light Patterns**: React to music frequency spectrum
+- **Customizable Visual Styles**: Adjustable shader parameters
+- **User Input Support**: Upload audio files or stream radio
 
 ## Table of Contents
 
 - [Getting Started](#getting-started)
   - [Technical Requirements](#technical-requirements)
   - [Setup Instructions](#setup-instructions)
-- [Projects](#projects)
-  - [1. Interactive Particle Simulator](docs/particle-simulator/README.md)
-  - [2. Dynamic Data Visualization Dashboard](docs/data-visualization/README.md)
-  - [3. Procedural Landscape Generator](docs/landscape-generator/README.md)
-  - [4. AI-Powered Chatbot Interface](docs/chatbot-interface/README.md)
-  - [5. Interactive Music Visualizer](docs/music-visualizer/README.md)
+- [Project Structure](#project-structure)
 - [Shared Resources](#shared-resources)
   - [Code Style Guide](docs/style-guide.md)
   - [Common Components](docs/components.md)
@@ -45,68 +41,38 @@ Some projects may have additional requirements:
 
 ### Setup Instructions
 
-1. Clone this repository
-2. Navigate to the project directory you want to work on
+1. Clone this repository:
+   ```
+   git clone https://github.com/adamjen/music_app.git
+   ```
+2. Navigate to the music-visualizer directory:
+   ```
+   cd music-visualizer
+   ```
 3. Install dependencies (if any):
    ```
    npm install
    ```
-4. Run the development server (if applicable):
+4. Run the development server:
    ```
    npm start
    ```
+5. Access the visualizer at `http://localhost:8080`
 
-## Projects
+## Project Structure
 
-### 1. Interactive Particle Simulator
-
-[View Documentation](docs/particle-simulator/README.md)
-
-Features:
-- Realistic particle physics simulation with gravity, collisions, and constraints
-- Customizable particle properties (mass, charge, velocity)
-- Shader-based rendering for smooth visuals
-- Interactive controls to modify simulation parameters in real-time
-
-### 2. Dynamic Data Visualization Dashboard
-
-[View Documentation](docs/data-visualization/README.md)
-
-Features:
-- Real-time data feeds from public APIs (e.g., financial markets, weather)
-- Animated charts and graphs with smooth transitions
-- Customizable dashboard layout with drag-and-drop widgets
-- Responsive design that works on desktop and mobile devices
-
-### 3. Procedural Landscape Generator
-
-[View Documentation](docs/landscape-generator/README.md)
-
-Features:
-- Procedurally generated terrains using noise algorithms (Perlin, Simplex)
-- Interactive zoom/pan controls to explore the landscape
-- Dynamic lighting and shadows via shaders
-- Export functionality for generated landscapes as images
-
-### 4. AI-Powered Chatbot Interface
-
-[View Documentation](docs/chatbot-interface/README.md)
-
-Features:
-- Stylish chat interface with animated typing effects
-- AI conversation handling with natural language processing
-- Contextual responses and memory of previous interactions
-- Customizable themes and emoji support
-
-### 5. Interactive Music Visualizer
-
-[View Documentation](docs/music-visualization/README.md)
-
-Features:
-- Real-time audio analysis using the Web Audio API
-- Dynamic light patterns that react to music frequency spectrum
-- Customizable visual styles via shader parameters
-- Support for user-uploaded audio files or streaming radio
+```
+music-visualizer/
+├── index.html          # Main entry point
+├── style.css           # Styling
+├── script.js            # Core visualization logic
+├── audio/               # Audio processing modules
+│   ├── analyzer.js       # Audio frequency analysis
+│   └── loader.js        # Audio file loading
+└── shaders/             # GLSL shader files
+    ├── base.glsl         # Base visual effects
+    ├── spectrum.glsl     # Frequency spectrum visualization
+    └── waves.glsl        # Waveform visualization
 
 ## Shared Resources
 
@@ -144,5 +110,6 @@ Common helper functions for all projects:
 We welcome contributions to improve these projects! Please follow our [contribution guidelines](CONTRIBUTING.md) when submitting pull requests.
 
 ---
+© 2025
 
-© 2025 Website Projects. All rights reserved.
+All rights reserved.
