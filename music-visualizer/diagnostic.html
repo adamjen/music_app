@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Diagnostic - Music Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .diagnostic-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        #log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry { margin: 2px 0; }
+        .log-error { color: #dc3545; }
+        .log-success { color: #28a745; }
+        .log-info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <h1>Audio Diagnostic - Music Visualizer</h1>
+    
+    <div class="diagnostic-section">
+        <h2>System Check</h2>
+        <div id="systemStatus" class="status info">Checking system...</div>
+        <button onclick="runSystemCheck()">Run System Check</button>
+    </div>
+
+    <div class="diagnostic-section">
+        <h2>Audio File Test</h2>
+        <input type="file" id="audioFile" accept="audio/*">
+        <button onclick="testFile()" id="testFileBtn" disabled>Test File</button>
+        <div id="fileStatus" class="status info">Select an audio file to test</div>
+    </div>
+
+    <div class="diagnostic-section">
+        <h2>Playback Test</h2>
+        <button onclick="testPlayback()" id="playBtn" disabled>Test Playback</button>
+        <button onclick="stopPlayback()" id="stopBtn" disabled>Stop</button>
+        <div id="playbackStatus" class="status info">Load a file first</div>
+    </div>
+
+    <div class="diagnostic-section">
+        <h2>Analysis Test</h2>
+        <canvas id="analysisCanvas" width="400" height="200" style="border: 1px solid #ccc; margin: 10px 0;"></canvas>
+        <button onclick="testAnalysis()" id="analysisBtn" disabled>Test Analysis</button>
+        <div id="analysisStatus" class="status info">Load a file first</div>
+    </div>
+
+    <div class="diagnostic-section">
+        <h2>Debug Log</h2>
+        <div id="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        let audioContext = null;
+        let analyserNode = null;
+        let currentBuffer = null;
+        let sourceNode = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        async function runSystemCheck() {
+            updateStatus('systemStatus', 'Running system check...', 'info');
+            log('Starting system check...');
+
+            try {
+                // Check Web Audio API support
+                if (!window.AudioContext && !window.webkitAudioContext) {
+                    throw new Error('Web Audio API not supported');
+                }
+                log('Web Audio API supported', 'success');
+
+                // Check WebGL support
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+                if (!gl) {
+                    throw new Error('WebGL not supported');
+                }
+                log('WebGL supported', 'success');
+
+                // Initialize audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                log(`Audio context created: ${audioContext.state}`, 'success');
+
+                // Create analyser node
+                analyserNode = audioContext.createAnalyser();
+                analyserNode.fftSize = 2048;
+                log('Analyser node created', 'success');
+
+                updateStatus('systemStatus', '✅ System check passed', 'success');
+                
+            } catch (error) {
+                log(`System check failed: ${error.message}`, 'error');
+                updateStatus('systemStatus', `❌ System check failed: ${error.message}`, 'error');
+            }
+        }
+
+        document.getElementById('audioFile').addEventListener('change', (e) => {
+            const testFileBtn = document.getElementById('testFileBtn');
+            testFileBtn.disabled = e.target.files.length === 0;
+            updateStatus('fileStatus', 'File selected, ready to test', 'info');
+        });
+
+        async function testFile() {
+            const file = document.getElementById('audioFile').files[0];
+            if (!file) {
+                updateStatus('fileStatus', '❌ No file selected', 'error');
+                return;
+            }
+
+            updateStatus('fileStatus', 'Testing file...', 'info');
+            log(`Testing file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+
+            try {
+                if (!audioContext) {
+                    throw new Error('Audio context not initialized');
+                }
+
+                // Resume audio context if suspended
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                    log('Audio context resumed');
+                }
+
+                // Read file as ArrayBuffer
+                const arrayBuffer = await file.arrayBuffer();
+                log('File read as ArrayBuffer', 'success');
+
+                // Decode audio data
+                currentBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                
+                const duration = currentBuffer.duration;
+                const channels = currentBuffer.numberOfChannels;
+                const sampleRate = currentBuffer.sampleRate;
+                
+                log(`File loaded successfully: ${duration.toFixed(2)}s, ${channels}ch, ${sampleRate}Hz`, 'success');
+                updateStatus('fileStatus', `✅ File loaded: ${duration.toFixed(2)}s`, 'success');
+                
+                // Enable playback and analysis buttons
+                document.getElementById('playBtn').disabled = false;
+                document.getElementById('analysisBtn').disabled = false;
+                
+            } catch (error) {
+                log(`File loading failed: ${error.message}`, 'error');
+                updateStatus('fileStatus', `❌ File loading failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPlayback() {
+            if (!currentBuffer) {
+                updateStatus('playbackStatus', '❌ No audio loaded', 'error');
+                return;
+            }
+
+            updateStatus('playbackStatus', 'Starting playback...', 'info');
+            log('Starting playback test...');
+
+            try {
+                // Resume audio context if suspended
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                    log('Audio context resumed');
+                }
+
+                // Create and configure source
+                sourceNode = audioContext.createBufferSource();
+                sourceNode.buffer = currentBuffer;
+                sourceNode.connect(analyserNode);
+                analyserNode.connect(audioContext.destination);
+                
+                sourceNode.onended = () => {
+                    log('Playback completed', 'success');
+                    updateStatus('playbackStatus', '✅ Playback completed', 'success');
+                    document.getElementById('playBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = true;
+                };
+                
+                sourceNode.start();
+                
+                log('Playback started', 'success');
+                updateStatus('playbackStatus', '▶️ Playing...', 'success');
+                
+                document.getElementById('playBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = false;
+                
+            } catch (error) {
+                log(`Playback failed: ${error.message}`, 'error');
+                updateStatus('playbackStatus', `❌ Playback failed: ${error.message}`, 'error');
+            }
+        }
+
+        function stopPlayback() {
+            if (sourceNode) {
+                try {
+                    sourceNode.stop();
+                    log('Playback stopped', 'info');
+                } catch (e) {
+                    log('Error stopping playback (may already be stopped)', 'warning');
+                }
+                sourceNode = null;
+            }
+            
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            updateStatus('playbackStatus', '⏹️ Stopped', 'info');
+        }
+
+        async function testAnalysis() {
+            if (!currentBuffer) {
+                updateStatus('analysisStatus', '❌ No audio loaded', 'error');
+                return;
+            }
+
+            updateStatus('analysisStatus', 'Testing analysis...', 'info');
+            log('Testing audio analysis...');
+
+            try {
+                const canvas = document.getElementById('analysisCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Get frequency data
+                const bufferLength = analyserNode.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                analyserNode.getByteFrequencyData(dataArray);
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw frequency bars
+                const barWidth = canvas.width / bufferLength;
+                const maxValue = Math.max(...dataArray);
+                
+                ctx.fillStyle = '#007bff';
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = (dataArray[i] / 255) * canvas.height;
+                    ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 1, barHeight);
+                }
+                
+                log(`Analysis complete: ${bufferLength} bins, max: ${maxValue}`, 'success');
+                updateStatus('analysisStatus', `✅ Analysis complete: ${bufferLength} frequency bins`, 'success');
+                
+            } catch (error) {
+                log(`Analysis failed: ${error.message}`, 'error');
+                updateStatus('analysisStatus', `❌ Analysis failed: ${error.message}`, 'error');
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Run initial system check
+        runSystemCheck();
+    </script>
+</body>
+</html>

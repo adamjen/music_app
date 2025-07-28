@@ -1,24 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Music Visualizer</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Music Visualizer</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="controls">
-    <input type="file" id="audioFileInput" accept="audio/*">
-    <button id="radioButton">Switch to Radio</button>
-    <label for="shaderSelect">Shader Preset:</label>
-    <select id="shaderSelect">
-      <option value="spectrum.glsl">Spectrum</option>
-      <option value="waves.glsl">Waves</option>
-    </select>
-  </div>
-
-  <canvas id="visualizer"></canvas>
-
-  <script src="script.js"></script>
+    <div class="container">
+        <header>
+            <h1>Interactive Music Visualizer</h1>
+        </header>
+        
+        <main>
+            <div class="visualizer-container">
+                <canvas id="visualizer-canvas"></canvas>
+            </div>
+            
+            <div class="controls">
+                <div class="audio-controls">
+                    <button id="play-button">Play</button>
+                    <button id="stop-button">Stop</button>
+                    <button id="next-button">Next</button>
+                    <button id="prev-button">Previous</button>
+                    <div id="time-display">0:00 / 0:00</div>
+                </div>
+                
+                <div class="file-controls">
+                    <input type="file" id="audio-file-input" accept="audio/*" multiple>
+                    <button id="stream-radio-button">Stream Radio</button>
+                    <div class="file-list">
+                        <h3>Audio Files</h3>
+                        <ul id="file-list"></ul>
+                    </div>
+                </div>
+                
+                <div class="shader-controls">
+                    <h3>Visual Style</h3>
+                    <select id="shader-select">
+                        <option value="base">Base</option>
+                        <option value="spectrum">Frequency Spectrum</option>
+                        <option value="waves">Waveform</option>
+                    </select>
+                    <div id="shader-params"></div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Interactive Music Visualizer &copy; 2025</p>
+        </footer>
+    </div>
+    
+    <script type="module" src="script.js"></script>
 </body>
 </html>

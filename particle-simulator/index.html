@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Particle Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="container">
+        <h1>Particle Simulator</h1>
+
+        <canvas id="glCanvas"></canvas>
+
+        <div id="controls">
+            <h2>Simulation Parameters</h2>
+
+            <label for="particleCount">Particle Count:</label>
+            <input type="range" id="particleCount" min="100" max="10000" value="500">
+
+            <br>
+
+            <label for="gravity">Gravity:</label>
+            <input type="range" id="gravity" min="-20" max="20" step="0.1" value="-9.8">
+
+            <br>
+
+            <label for="shaderEffect">Shader Effect:</label>
+            <select id="shaderEffect">
+                <option value="none">None</option>
+                <option value="glow">Glow</option>
+                <option value="trails">Trails</option>
+            </select>
+
+            <br>
+
+            <button id="resetButton">Reset Simulation</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Functionality Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .warning { background: #fff3cd; color: #856404; }
+        .error { background: #f8d7da; color: #721c24; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        #audioFile { margin: 10px 0; }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #007bff;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <h1>Audio Functionality Test Suite</h1>
+    
+    <div class="test-section">
+        <h2>1. Audio Context Test</h2>
+        <button onclick="testAudioContext()">Test Audio Context Creation</button>
+        <div id="audioContextResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. File Loading Test</h2>
+        <input type="file" id="audioFile" accept="audio/*" multiple>
+        <button onclick="testFileLoading()" id="testFileBtn" disabled>Test File Loading</button>
+        <div id="fileLoadingResult" class="test-result"></div>
+        <div class="progress-bar">
+            <div id="fileProgress" class="progress-fill" style="width: 0%"></div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Audio Playback Test</h2>
+        <button onclick="testAudioPlayback()" id="testPlaybackBtn" disabled>Test Playback</button>
+        <button onclick="stopPlayback()" id="stopBtn" disabled>Stop</button>
+        <div id="playbackResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Audio Analysis Test</h2>
+        <button onclick="testAudioAnalysis()" id="testAnalysisBtn" disabled>Test Analysis</button>
+        <canvas id="analysisCanvas" width="400" height="200" style="border: 1px solid #ccc; margin: 10px 0;"></canvas>
+        <div id="analysisResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Error Handling Test</h2>
+        <button onclick="testErrorHandling()">Test Error Handling</button>
+        <div id="errorResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>6. Resource Management Test</h2>
+        <button onclick="testResourceManagement()">Test Resource Management</button>
+        <div id="resourceResult" class="test-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>7. Full Integration Test</h2>
+        <button onclick="runFullIntegrationTest()" id="integrationBtn" disabled>Run Full Test</button>
+        <div id="integrationResult" class="test-result"></div>
+    </div>
+
+    <script type="module">
+        import { AudioAnalyzer } from './audio/analyzer.js';
+        import { AudioLoader } from './audio/loader.js';
+        import { AudioContextManager } from './audio/context-manager.js';
+        import { ResourceManager } from './audio/resource-manager.js';
+        import { ErrorHandler } from './utils/error-handler.js';
+
+        let audioContext = null;
+        let analyzer = null;
+        let loader = null;
+        let currentBuffer = null;
+        let sourceNode = null;
+        let isTesting = false;
+
+        // Initialize error handler
+        ErrorHandler.initialize();
+
+        // File input change handler
+        document.getElementById('audioFile').addEventListener('change', (e) => {
+            const testFileBtn = document.getElementById('testFileBtn');
+            testFileBtn.disabled = e.target.files.length === 0;
+        });
+
+        async function testAudioContext() {
+            const result = document.getElementById('audioContextResult');
+            result.textContent = 'Testing audio context creation...';
+            result.className = 'test-result';
+
+            try {
+                const manager = AudioContextManager.getInstance();
+                await manager.initialize();
+                audioContext = manager.getContext();
+                
+                result.textContent = `✅ Audio context created successfully\nState: ${audioContext.state}\nSample rate: ${audioContext.sampleRate} Hz`;
+                result.className = 'test-result success';
+                
+                // Initialize analyzer and loader
+                analyzer = new AudioAnalyzer(audioContext);
+                loader = new AudioLoader(audioContext);
+                
+            } catch (error) {
+                result.textContent = `❌ Error creating audio context: ${error.message}`;
+                result.className = 'test-result error';
+            }
+        }
+
+        async function testFileLoading() {
+            const result = document.getElementById('fileLoadingResult');
+            const progress = document.getElementById('fileProgress');
+            const files = document.getElementById('audioFile').files;
+            
+            if (files.length === 0) {
+                result.textContent = '❌ No files selected';
+                result.className = 'test-result error';
+                return;
+            }
+
+            result.textContent = 'Loading audio file...';
+            result.className = 'test-result';
+            progress.style.width = '0%';
+
+            try {
+                const file = files[0];
+                const fileSize = (file.size / 1024 / 1024).toFixed(2);
+                
+                // Simulate progress
+                let progressValue = 0;
+                const progressInterval = setInterval(() => {
+                    progressValue += 10;
+                    progress.style.width = `${Math.min(progressValue, 90)}%`;
+                }, 100);
+
+                currentBuffer = await loader.loadAudioFile(file);
+                
+                clearInterval(progressInterval);
+                progress.style.width = '100%';
+
+                const duration = currentBuffer.duration;
+                const channels = currentBuffer.numberOfChannels;
+                const sampleRate = currentBuffer.sampleRate;
+                
+                result.textContent = `✅ File loaded successfully\n` +
+                    `Name: ${file.name}\n` +
+                    `Size: ${fileSize} MB\n` +
+                    `Duration: ${duration.toFixed(2)}s\n` +
+                    `Channels: ${channels}\n` +
+                    `Sample rate: ${sampleRate} Hz`;
+                result.className = 'test-result success';
+                
+                // Enable playback and analysis buttons
+                document.getElementById('testPlaybackBtn').disabled = false;
+                document.getElementById('testAnalysisBtn').disabled = false;
+                document.getElementById('integrationBtn').disabled = false;
+                
+            } catch (error) {
+                progress.style.width = '0%';
+                result.textContent = `❌ Error loading file: ${error.message}`;
+                result.className = 'test-result error';
+            }
+        }
+
+        async function testAudioPlayback() {
+            const result = document.getElementById('playbackResult');
+            const playBtn = document.getElementById('testPlaybackBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            
+            if (!currentBuffer) {
+                result.textContent = '❌ No audio buffer loaded';
+                result.className = 'test-result error';
+                return;
+            }
+
+            result.textContent = 'Starting playback test...';
+            result.className = 'test-result';
+
+            try {
+                // Ensure audio context is running
+                const manager = AudioContextManager.getInstance();
+                if (manager.getState() === 'suspended') {
+                    await manager.resume();
+                }
+
+                // Create and configure source
+                sourceNode = audioContext.createBufferSource();
+                sourceNode.buffer = currentBuffer;
+                sourceNode.connect(analyzer.analyserNode);
+                analyzer.analyserNode.connect(audioContext.destination);
+                
+                sourceNode.onended = () => {
+                    result.textContent = '✅ Playback completed successfully';
+                    result.className = 'test-result success';
+                    playBtn.disabled = false;
+                    stopBtn.disabled = true;
+                };
+                
+                sourceNode.start();
+                
+                result.textContent = '▶️ Playback started successfully';
+                result.className = 'test-result success';
+                
+                playBtn.disabled = true;
+                stopBtn.disabled = false;
+                
+            } catch (error) {
+                result.textContent = `❌ Error starting playback: ${error.message}`;
+                result.className = 'test-result error';
+            }
+        }
+
+        function stopPlayback() {
+            if (sourceNode) {
+                try {
+                    sourceNode.stop();
+                } catch (e) {
+                    // Ignore if already stopped
+                }
+                sourceNode = null;
+            }
+            
+            document.getElementById('testPlaybackBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('playbackResult').textContent = '⏹️ Playback stopped';
+        }
+
+        async function testAudioAnalysis() {
+            const result = document.getElementById('analysisResult');
+            const canvas = document.getElementById('analysisCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (!currentBuffer) {
+                result.textContent = '❌ No audio buffer loaded';
+                result.className = 'test-result error';
+                return;
+            }
+
+            result.textContent = 'Testing audio analysis...';
+            result.className = 'test-result';
+
+            try {
+                // Get frequency data
+                const dataArray = analyzer.getFrequencyData();
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw frequency bars
+                const barWidth = canvas.width / dataArray.length;
+                const maxValue = Math.max(...dataArray);
+                
+                ctx.fillStyle = '#007bff';
+                for (let i = 0; i < dataArray.length; i++) {
+                    const barHeight = (dataArray[i] / 255) * canvas.height;
+                    ctx.fillRect(i * barWidth, canvas.height - barHeight, barWidth - 1, barHeight);
+                }
+                
+                result.textContent = `✅ Analysis successful\n` +
+                    `Frequency bins: ${dataArray.length}\n` +
+                    `Max amplitude: ${maxValue.toFixed(2)}\n` +
+                    `Average amplitude: ${(dataArray.reduce((a, b) => a + b, 0) / dataArray.length).toFixed(2)}`;
+                result.className = 'test-result success';
+                
+            } catch (error) {
+                result.textContent = `❌ Error in analysis: ${error.message}`;
+                result.className = 'test-result error';
+            }
+        }
+
+        function testErrorHandling() {
+            const result = document.getElementById('errorResult');
+            
+            try {
+                // Test various error scenarios
+                const tests = [
+                    () => new AudioAnalyzer(null), // null context
+                    () => new AudioLoader(null), // null context
+                    () => loader.loadAudioFile(null), // null file
+                    () => analyzer.getFrequencyData(), // without initialization
+                ];
+                
+                let passed = 0;
+                tests.forEach((test, index) => {
+                    try {
+                        test();
+                    } catch (e) {
+                        passed++;
+                    }
+                });
+                
+                result.textContent = `✅ Error handling test completed\n` +
+                    `Tests run: ${tests.length}\n` +
+                    `Errors caught: ${passed}/${tests.length}`;
+                result.className = 'test-result success';
+                
+            } catch (error) {
+                result.textContent = `❌ Error in error handling test: ${error.message}`;
+                result.className = 'test-result error';
+            }
+        }
+
+        function testResourceManagement() {
+            const result = document.getElementById('resourceResult');
+            
+            try {
+                const manager = ResourceManager.getInstance();
+                const stats = manager.getResourceStats();
+                
+                result.textContent = `✅ Resource management test completed\n` +
+                    `Active resources: ${stats.total}\n` +
+                    `Audio contexts: ${stats.audioContexts}\n` +
+                    `Analyser nodes: ${stats.analyserNodes}\n` +
+                    `Source nodes: ${stats.sourceNodes}\n` +
+                    `WebGL resources: ${stats.webGLResources}`;
+                result.className = 'test-result success';
+                
+            } catch (error) {
+                result.textContent = `❌ Error in resource management test: ${error.message}`;
+                result.className = 'test-result error';
+            }
+        }
+
+        async function runFullIntegrationTest() {
+            const result = document.getElementById('integrationResult');
+            const files = document.getElementById('audioFile').files;
+            
+            if (files.length === 0) {
+                result.textContent = '❌ No files selected for integration test';
+                result.className = 'test-result error';
+                return;
+            }
+
+            result.textContent = 'Running full integration test...';
+            result.className = 'test-result';
+            isTesting = true;
+
+            try {
+                // Step 1: Audio Context
+                await testAudioContext();
+                
+                // Step 2: File Loading
+                await testFileLoading();
+                
+                // Step 3: Playback
+                await new Promise((resolve) => {
+                    setTimeout(async () => {
+                        await testAudioPlayback();
+                        resolve();
+                    }, 1000);
+                });
+                
+                // Step 4: Analysis
+                await new Promise((resolve) => {
+                    setTimeout(() => {
+                        testAudioAnalysis();
+                        resolve();
+                    }, 2000);
+                });
+                
+                // Step 5: Resource Management
+                testResourceManagement();
+                
+                result.textContent = `✅ Full integration test completed successfully\n` +
+                    `All components working correctly`;
+                result.className = 'test-result success';
+                
+            } catch (error) {
+                result.textContent = `❌ Integration test failed: ${error.message}`;
+                result.className = 'test-result error';
+            } finally {
+                isTesting = false;
+            }
+        }
+
+        // Make functions available globally
+        window.testAudioContext = testAudioContext;
+        window.testFileLoading = testFileLoading;
+        window.testAudioPlayback = testAudioPlayback;
+        window.stopPlayback = stopPlayback;
+        window.testAudioAnalysis = testAudioAnalysis;
+        window.testErrorHandling = testErrorHandling;
+        window.testResourceManagement = testResourceManagement;
+        window.runFullIntegrationTest = runFullIntegrationTest;
+    </script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Play Audio Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Auto Play Audio Test</h1>
+        <p>This page tests automatic audio playback using the Web Audio API.</p>
+        
+        <div id="status">Status: Ready</div>
+        
+        <button id="stopTest">Stop</button>
+        
+        <div>
+            <h3>Test with Audio File</h3>
+            <input type="file" id="audioFile" accept="audio/*">
+        </div>
+    </div>
+
+    <script>
+        let audioContext = null;
+        let fileSource = null;
+        
+        // Update status display
+        function updateStatus(message) {
+            document.getElementById('status').textContent = 'Status: ' + message;
+            console.log(message);
+        }
+        
+        // Initialize audio context automatically
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                updateStatus(`Audio context initialized in ${audioContext.state} state`);
+            }
+        }
+        
+        // Play selected audio file
+        function playAudioFile(file) {
+            initAudio();
+            
+            // Resume audio context if suspended
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    updateStatus('Audio context resumed');
+                    startFilePlayback(file);
+                });
+            } else {
+                startFilePlayback(file);
+            }
+        }
+        
+        function startFilePlayback(file) {
+            // Create FileReader to read the file
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                // Decode the audio data
+                audioContext.decodeAudioData(e.target.result, function(buffer) {
+                    // Create source node
+                    fileSource = audioContext.createBufferSource();
+                    fileSource.buffer = buffer;
+                    fileSource.connect(audioContext.destination);
+                    
+                    // Start playback
+                    fileSource.start();
+                    updateStatus(`Playing audio file: ${file.name}`);
+                }, function(error) {
+                    updateStatus('Error decoding audio data: ' + error.message);
+                });
+            };
+            
+            reader.onerror = function() {
+                updateStatus('Error reading file');
+            };
+            
+            // Read the file as array buffer
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // Stop the audio
+        function stopAudio() {
+            if (fileSource) {
+                fileSource.stop();
+                fileSource = null;
+                updateStatus('Audio stopped');
+            }
+        }
+        
+        // Set up event listeners
+        document.getElementById('stopTest').addEventListener('click', stopAudio);
+        
+        document.getElementById('audioFile').addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                playAudioFile(e.target.files[0]);
+            }
+        });
+        
+        // Try to initialize audio context immediately
+        window.addEventListener('load', function() {
+            try {
+                initAudio();
+                updateStatus('Audio context initialized on page load');
+            } catch (error) {
+                updateStatus('Error initializing audio context: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "name": "music-app",
+  "version": "1.0.0",
+  "description": "Welcome to the Interactive Music Visualizer project! This repository contains a web-based application that creates dynamic visualizations synchronized with audio in real-time using WebGL shaders and the Web Audio API.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adamjen/music_app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/adamjen/music_app/issues"
+  },
+  "homepage": "https://github.com/adamjen/music_app#readme",
+  "devDependencies": {
+    "eslint": "^9.31.0"
+  }
+}

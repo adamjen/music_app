@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Web Audio API Test</h1>
+        <p>This page tests basic audio playback using the Web Audio API.</p>
+        
+        <div id="status">Status: Ready</div>
+        
+        <button id="playTest">Play Test Tone</button>
+        <button id="stopTest">Stop</button>
+        
+        <div>
+            <h3>Test with Audio File</h3>
+            <input type="file" id="audioFile" accept="audio/*">
+            <button id="playFile">Play Selected File</button>
+        </div>
+    </div>
+
+    <script>
+        let audioContext = null;
+        let oscillator = null;
+        let fileSource = null;
+        
+        // Update status display
+        function updateStatus(message) {
+            document.getElementById('status').textContent = 'Status: ' + message;
+            console.log(message);
+        }
+        
+        // Initialize audio context on user interaction
+        function initAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                updateStatus(`Audio context initialized in ${audioContext.state} state`);
+            }
+        }
+        
+        // Play a test tone
+        function playTestTone() {
+            initAudio();
+            
+            // Resume audio context if suspended
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    updateStatus('Audio context resumed');
+                    startTone();
+                });
+            } else {
+                startTone();
+            }
+        }
+        
+        function startTone() {
+            // Create oscillator
+            oscillator = audioContext.createOscillator();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4 note
+            
+            // Connect to output
+            oscillator.connect(audioContext.destination);
+            
+            // Start the oscillator
+            oscillator.start();
+            updateStatus('Test tone playing at 440Hz');
+        }
+        
+        // Stop the test tone
+        function stopTestTone() {
+            if (oscillator) {
+                oscillator.stop();
+                oscillator = null;
+                updateStatus('Test tone stopped');
+            }
+        }
+        
+        // Play selected audio file
+        function playAudioFile(file) {
+            initAudio();
+            
+            // Resume audio context if suspended
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    updateStatus('Audio context resumed');
+                    startFilePlayback(file);
+                });
+            } else {
+                startFilePlayback(file);
+            }
+        }
+        
+        function startFilePlayback(file) {
+            // Create FileReader to read the file
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                // Decode the audio data
+                audioContext.decodeAudioData(e.target.result, function(buffer) {
+                    // Create source node
+                    fileSource = audioContext.createBufferSource();
+                    fileSource.buffer = buffer;
+                    fileSource.connect(audioContext.destination);
+                    
+                    // Start playback
+                    fileSource.start();
+                    updateStatus(`Playing audio file: ${file.name}`);
+                }, function(error) {
+                    updateStatus('Error decoding audio data: ' + error.message);
+                });
+            };
+            
+            reader.onerror = function() {
+                updateStatus('Error reading file');
+            };
+            
+            // Read the file as array buffer
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // Set up event listeners
+        document.getElementById('playTest').addEventListener('click', playTestTone);
+        document.getElementById('stopTest').addEventListener('click', stopTestTone);
+        
+        document.getElementById('audioFile').addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                playAudioFile(e.target.files[0]);
+            }
+        });
+        
+        // Also allow starting audio on any button click (for mobile)
+        document.addEventListener('click', function() {
+            if (!audioContext) {
+                initAudio();
+            }
+        }, {once: true});
+    </script>
+</body>
+</html>
+       
