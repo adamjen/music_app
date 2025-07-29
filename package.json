@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/adamjen/music_app#readme",
   "devDependencies": {
-    "eslint": "^9.31.0"
+    "eslint": "^9.31.0",
+    "express": "^5.1.0"
   }
 }

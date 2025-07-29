@@ -1,0 +1,39 @@
+Audio Debug Analysis Report
+Generated: 2025-07-29T10:08:07.983Z
+Duration: 60 seconds
+Samples: 3746
+Sensitivities Tested: 1, 2, 0.1, 0.5
+
+=== FREQUENCY BAND ANALYSIS ===
+Bass (0-4): Min=207.40, Max=255.00, Avg=237.92
+Mid (5-64): Min=86.36, Max=217.56, Avg=169.16
+Treble (65+): Min=25.84, Max=127.07, Avg=79.04
+
+=== SENSITIVITY ANALYSIS ===
+
+Sensitivity 1:
+  Average Level: NaN
+  Peak Value: NaN
+  Range: NaN - NaN
+  Clipping Events: 0
+
+Sensitivity 2:
+  Average Level: NaN
+  Peak Value: NaN
+  Range: NaN - NaN
+  Clipping Events: 0
+
+Sensitivity 0.1:
+  Average Level: NaN
+  Peak Value: NaN
+  Range: NaN - NaN
+  Clipping Events: 0
+
+Sensitivity 0.5:
+  Average Level: NaN
+  Peak Value: NaN
+  Range: NaN - NaN
+  Clipping Events: 0
+
+=== CLIPPING EVENTS ===
+Total: 0

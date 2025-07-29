@@ -117,7 +117,45 @@ export class ShaderManager {
 
     updateUniforms(resolution, audioData) {
         this.uniforms[this.currentShader].u_resolution = resolution;
-        this.uniforms[this.currentShader].u_audioData = audioData;
+        
+        // Ensure audioData is properly converted to Float32Array
+        if (audioData && audioData.length > 0) {
+            if (audioData instanceof Uint8Array) {
+                // Convert Uint8Array (0-255) to Float32Array (0.0-1.0)
+                const length = Math.min(audioData.length, this.uniforms[this.currentShader].u_audioData.length);
+                for (let i = 0; i < length; i++) {
+                    this.uniforms[this.currentShader].u_audioData[i] = audioData[i] / 255.0;
+                }
+                // Fill remaining elements with 0
+                for (let i = length; i < this.uniforms[this.currentShader].u_audioData.length; i++) {
+                    this.uniforms[this.currentShader].u_audioData[i] = 0.0;
+                }
+            } else if (audioData instanceof Float32Array) {
+                // Direct copy for Float32Array
+                const length = Math.min(audioData.length, this.uniforms[this.currentShader].u_audioData.length);
+                for (let i = 0; i < length; i++) {
+                    this.uniforms[this.currentShader].u_audioData[i] = Math.max(0, Math.min(1, audioData[i]));
+                }
+                // Fill remaining elements with 0
+                for (let i = length; i < this.uniforms[this.currentShader].u_audioData.length; i++) {
+                    this.uniforms[this.currentShader].u_audioData[i] = 0.0;
+                }
+            } else {
+                // Handle array-like objects
+                const length = Math.min(audioData.length, this.uniforms[this.currentShader].u_audioData.length);
+                for (let i = 0; i < length; i++) {
+                    this.uniforms[this.currentShader].u_audioData[i] = Math.max(0, Math.min(1, audioData[i] || 0));
+                }
+                // Fill remaining elements with 0
+                for (let i = length; i < this.uniforms[this.currentShader].u_audioData.length; i++) {
+                    this.uniforms[this.currentShader].u_audioData[i] = 0.0;
+                }
+            }
+        } else {
+            // Fallback: fill with zeros for no audio
+            this.uniforms[this.currentShader].u_audioData.fill(0.0);
+        }
+        
         this.uniforms[this.currentShader].u_time += 0.016;
     }
 

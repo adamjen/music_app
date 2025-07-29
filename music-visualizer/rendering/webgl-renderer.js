@@ -48,14 +48,19 @@ export class WebGLRenderer {
 
             if (this.vertexBuffer) {
                 this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
-            } else {
-                this.createVertexBuffer();
-                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
             }
 
             const positionLocation = this.gl.getAttribLocation(currentProgram, 'a_position');
-            this.gl.enableVertexAttribArray(positionLocation);
-            this.gl.vertexAttribPointer(positionLocation, 2, this.gl.FLOAT, false, 0, 0);
+            if (positionLocation !== -1) {
+                this.gl.enableVertexAttribArray(positionLocation);
+                this.gl.vertexAttribPointer(positionLocation, 2, this.gl.FLOAT, false, 0, 0);
+            }
+
+            // Update uniforms with audio data
+            this.shaderManager.updateUniforms(
+                [this.gl.canvas.width, this.gl.canvas.height],
+                audioData
+            );
 
             const uniforms = this.shaderManager.getUniforms();
             

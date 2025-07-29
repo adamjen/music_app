@@ -90,7 +90,7 @@
 <body>
     <div class="container">
         <h1>Visual Diagnostic - Music Visualizer</h1>
-        
+
         <div class="diagnostic-section">
             <h2>System Status</h2>
             <div id="systemStatus" class="status info">Initializing...</div>
@@ -119,8 +119,9 @@
                     <option value="waves">Waves</option>
                 </select>
                 <label>Audio Sensitivity:</label>
-                <input type="range" id="sensitivity" min="0.1" max="5" value="1" step="0.1" onchange="updateSensitivity()">
+                <input type="range" id="sensitivity" min="0.1" max="2.5" value="1" step="0.1" onchange="updateSensitivity()">
                 <span id="sensitivityValue">1.0</span>
+                <span id="clippingIndicator" style="color: #ff6666; margin-left: 10px; display: none;">⚠️ Clipping</span>
             </div>
             <canvas id="visualizer-canvas" width="800" height="600"></canvas>
         </div>
@@ -156,6 +157,33 @@
         </div>
 
         <div class="diagnostic-section">
+            <h2>Audio Debug Logging</h2>
+            <div class="controls">
+                <button onclick="startAudioLogging()" id="startLoggingBtn" disabled>Start 60-Second Logging</button>
+                <button onclick="stopAudioLogging()" id="stopLoggingBtn" disabled>Stop Logging</button>
+                <label>
+                    <input type="checkbox" id="logSensitivity01" checked> 0.1
+                </label>
+                <label>
+                    <input type="checkbox" id="logSensitivity05" checked> 0.5
+                </label>
+                <label>
+                    <input type="checkbox" id="logSensitivity10" checked> 1.0
+                </label>
+                <label>
+                    <input type="checkbox" id="logSensitivity20" checked> 2.0
+                </label>
+            </div>
+            <div id="loggingStatus" class="status info">Ready to log audio data</div>
+            <div id="loggingProgress" style="display: none;">
+                <div style="background: #444; height: 20px; border-radius: 10px; overflow: hidden; margin: 10px 0;">
+                    <div id="progressBar" style="background: #007bff; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <div id="progressText">0.0s / 60.0s</div>
+            </div>
+        </div>
+
+        <div class="diagnostic-section">
             <h2>Debug Log</h2>
             <div id="debug-log"></div>
             <button onclick="clearLog()">Clear Log</button>
@@ -169,9 +197,11 @@
         import { WebGLRenderer } from './rendering/webgl-renderer.js';
         import { AudioContextManager } from './audio/context-manager.js';
         import { AudioSession } from './audio/audio-session.js';
+        import { AudioDebugLogger } from './audio-debug-logger.js';
 
-        let audioContext = null;
+        let globalAudioContext = null;
         let audioSession = null;
+        const globalAudioContextManager = new AudioContextManager();
         let canvasManager = null;
         let shaderManager = null;
         let renderer = null;
@@ -181,6 +211,7 @@
         let animationId = null;
         let audioData = new Uint8Array(256);
         let sensitivity = 1.0;
+        let debugLogger = null;
 
         function log(message, type = 'info') {
             const logDiv = document.getElementById('debug-log');
@@ -200,7 +231,7 @@
 
         async function runSystemCheck() {
             log('Running comprehensive system check...');
-            
+
             try {
                 // Check Web Audio API
                 if (!window.AudioContext && !window.webkitAudioContext) {
@@ -229,17 +260,17 @@
                 renderer.initialize();
                 log('✅ Renderer initialized');
 
-                audioContextManager = new AudioContextManager();
-                await audioContextManager.initialize();
+                // Initialize global instances
+                globalAudioContext = globalAudioContextManager;
+                await globalAudioContext.initialize();
                 log('✅ Audio context initialized');
 
-                audioSession = new AudioSession(audioContextManager.getContext());
+                audioSession = new AudioSession(globalAudioContext.getContext());
                 log('✅ Audio session ready');
 
                 updateStatus('systemStatus', 'System ready for testing');
-                
                 document.getElementById('loadBtn').disabled = false;
-                
+
             } catch (error) {
                 log(`System check failed: ${error.message}`, 'error');
                 updateStatus('systemStatus', `System error: ${error.message}`, true);
@@ -247,9 +278,15 @@
         }
 
         async function loadAudioFile() {
+            if (!audioSession) {
+                log('System not initialized. Please click "Check System" first.', 'warning');
+                updateStatus('audioStatus', 'System not initialized. Check System first.', true);
+                return;
+            }
+
             const fileInput = document.getElementById('audioFile');
             const file = fileInput.files[0];
-            
+
             if (!file) {
                 updateStatus('audioStatus', 'No file selected', true);
                 return;
@@ -262,10 +299,9 @@
                 await audioSession.handleFileSelect({ target: { files: [file] } });
                 log('Audio file loaded successfully');
                 updateStatus('audioStatus', 'Audio loaded - Ready to play');
-                
                 document.getElementById('playBtn').disabled = false;
                 document.getElementById('stopBtn').disabled = false;
-                
+
             } catch (error) {
                 log(`Failed to load audio: ${error.message}`, 'error');
                 updateStatus('audioStatus', `Load failed: ${error.message}`, true);
@@ -280,7 +316,6 @@
 
             try {
                 if (isPlaying) {
-                    // Stop current playback
                     if (source) {
                         source.stop();
                         source = null;
@@ -290,28 +325,25 @@
                     updateStatus('audioStatus', 'Stopped');
                     stopRenderLoop();
                 } else {
-                    // Start playback
                     const audioBuffer = audioSession.getCurrentAudioBuffer();
                     if (!audioBuffer) {
                         await audioSession.loadFileAtIndex(0);
                     }
 
-                    const audioContext = audioContextManager.getContext();
-                    source = audioContext.createBufferSource();
-                    analyser = audioContext.createAnalyser();
-                    
-                    analyser.fftSize = 512;
-                    source.buffer = audioSession.getCurrentAudioBuffer();
-                    source.connect(analyser);
-                    analyser.connect(audioContext.destination);
-                    
-                    audioData = new Uint8Array(analyser.frequencyBinCount);
-                    
-                    source.start();
-                    isPlaying = true;
-                    document.getElementById('playBtn').textContent = 'Pause';
-                    updateStatus('audioStatus', 'Playing');
-                    startRenderLoop();
+            const currentAudioContext = globalAudioContext.getContext();
+            source = currentAudioContext.createBufferSource();
+            analyser = currentAudioContext.createAnalyser();
+            analyser.fftSize = 512;
+            source.buffer = audioSession.getCurrentAudioBuffer();
+            source.connect(analyser);
+            analyser.connect(currentAudioContext.destination);
+            audioData = new Uint8Array(analyser.frequencyBinCount);
+            source.start();
+            isPlaying = true;
+            document.getElementById('playBtn').textContent = 'Pause';
+            updateStatus('audioStatus', 'Playing');
+            startRenderLoop();
+            updateLoggingButtonState();
                 }
             } catch (error) {
                 log(`Playback error: ${error.message}`, 'error');
@@ -332,6 +364,7 @@
             document.getElementById('playBtn').textContent = 'Play';
             updateStatus('audioStatus', 'Stopped');
             stopRenderLoop();
+            updateLoggingButtonState();
         }
 
         function startRenderLoop() {
@@ -341,14 +374,40 @@
                 try {
                     if (analyser && isPlaying) {
                         analyser.getByteFrequencyData(audioData);
-                        
-                        // Update debug displays
                         updateAudioDebug();
                         
-                        // Update shader uniforms
+                        let clippingDetected = false;
+                        const maxPossibleValue = 255.0;
+                        const targetMax = 0.8;
+                        
+                        const normalizedAudioData = audioData.map(v => {
+                            const normalized = v / maxPossibleValue;
+                            const logScaled = Math.log(1.0 + normalized * 9.0) / Math.log(10.0);
+                            let withSensitivity = logScaled * sensitivity;
+                            
+                            if (withSensitivity > targetMax) {
+                                const excess = withSensitivity - targetMax;
+                                withSensitivity = targetMax + (excess * 0.3);
+                                clippingDetected = true;
+                            }
+                            
+                            return Math.min(Math.max(withSensitivity, 0.0), 1.5);
+                        });
+                        
+                        const smoothedData = normalizedAudioData.map((val, idx) => {
+                            const prev = window.prevAudioData ? window.prevAudioData[idx] || val : val;
+                            return prev * 0.7 + val * 0.3;
+                        });
+                        window.prevAudioData = [...smoothedData];
+                        
+                        const clippingIndicator = document.getElementById('clippingIndicator');
+                        if (clippingIndicator) {
+                            clippingIndicator.style.display = clippingDetected ? 'inline' : 'none';
+                        }
+
                         shaderManager.updateUniforms(
                             canvasManager.getResolution(),
-                            audioData.map(v => v / 255.0 * sensitivity)
+                            normalizedAudioData
                         );
                     }
 
@@ -385,6 +444,16 @@
             document.getElementById('maxFreq').textContent = maxFreq;
         }
 
+        function updateLoggingButtonState() {
+            const startBtn = document.getElementById('startLoggingBtn');
+            const hasAnalyser = !!analyser;
+            const isAudioPlaying = isPlaying;
+            const hasSelectedSensitivity = document.querySelectorAll('#logSensitivity01:checked, #logSensitivity05:checked, #logSensitivity10:checked, #logSensitivity20:checked').length > 0;
+            
+            const shouldEnable = hasAnalyser && isAudioPlaying && hasSelectedSensitivity && !isLogging;
+            startBtn.disabled = !shouldEnable;
+        }
+
         function changeShader() {
             const shaderName = document.getElementById('shaderSelect').value;
             if (shaderManager) {
@@ -403,10 +472,288 @@
             document.getElementById('debug-log').innerHTML = '';
         }
 
-        function toggleDebug() {
+        // Audio Debug Logging Functions
+        let isLogging = false;
+        let loggingStartTime = null;
+        let loggingData = [];
+        let loggingInterval = null;
+
+        function startAudioLogging() {
+            if (!analyser || !isPlaying) {
+                log('Please start audio playback first', 'error');
+                return;
+            }
+
+            const sensitivities = [];
+            if (document.getElementById('logSensitivity01').checked) sensitivities.push(0.1);
+            if (document.getElementById('logSensitivity05').checked) sensitivities.push(0.5);
+            if (document.getElementById('logSensitivity10').checked) sensitivities.push(1.0);
+            if (document.getElementById('logSensitivity20').checked) sensitivities.push(2.0);
+
+            if (sensitivities.length === 0) {
+                log('Please select at least one sensitivity level', 'error');
+                return;
+            }
+
+            isLogging = true;
+            loggingStartTime = Date.now();
+            loggingData = [];
+            
+            document.getElementById('startLoggingBtn').disabled = true;
+            document.getElementById('stopLoggingBtn').disabled = false;
+            document.getElementById('loggingStatus').textContent = 'Logging audio data...';
+            document.getElementById('loggingProgress').style.display = 'block';
+            
+            log(`Starting 60-second audio logging with sensitivities: ${sensitivities.join(', ')}`);
+
+            loggingInterval = setInterval(() => {
+                if (!isLogging) return;
+
+                const elapsed = (Date.now() - loggingStartTime) / 1000;
+                const progress = Math.min(elapsed / 60, 1);
+                
+                document.getElementById('progressBar').style.width = `${progress * 100}%`;
+                document.getElementById('progressText').textContent = `${elapsed.toFixed(1)}s / 60.0s`;
+
+                if (elapsed >= 60) {
+                    stopAudioLogging();
+                    return;
+                }
+
+                // Capture audio data for each sensitivity
+                const currentData = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(currentData);
+
+                const logEntry = {
+                    timestamp: Date.now(),
+                    elapsed: elapsed,
+                    rawData: Array.from(currentData),
+                    frequencyBands: {
+                        bass: currentData.slice(0, 5).reduce((a, b) => a + b, 0) / 5,
+                        mid: currentData.slice(5, 64).reduce((a, b) => a + b, 0) / 59,
+                        treble: currentData.slice(64).reduce((a, b) => a + b, 0) / (currentData.length - 64)
+                    },
+                    maxFrequency: Math.max(...currentData),
+                    averageLevel: currentData.reduce((a, b) => a + b, 0) / currentData.length,
+                    processedData: {}
+                };
+
+                // Calculate processed values for each sensitivity
+                sensitivities.forEach(sens => {
+                    const processed = currentData.map(v => {
+                        const normalized = v / 255.0;
+                        const logScaled = Math.log(1.0 + normalized * 9.0) / Math.log(10.0);
+                        return Math.min(Math.max(logScaled * sens, 0.0), 1.5);
+                    });
+                    
+                    logEntry.processedData[sens] = {
+                        values: processed,
+                        average: processed.reduce((a, b) => a + b, 0) / processed.length,
+                        max: Math.max(...processed),
+                        min: Math.min(...processed)
+                    };
+                });
+
+                loggingData.push(logEntry);
+
+            }, 16.67); // 60fps logging
+        }
+
+        function stopAudioLogging() {
+            if (!isLogging) return;
+
+            isLogging = false;
+            clearInterval(loggingInterval);
+            
+            document.getElementById('startLoggingBtn').disabled = false;
+            document.getElementById('stopLoggingBtn').disabled = true;
+            document.getElementById('loggingStatus').textContent = 'Logging complete - Downloading results...';
+            document.getElementById('loggingProgress').style.display = 'none';
+
+            // Generate analysis report
+            const analysis = generateAnalysisReport(loggingData);
+            
+            // Create downloadable files
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            
+            // Full dataset
+            const fullData = {
+                metadata: {
+                    duration: 60,
+                    sampleRate: 60, // 60fps
+                    totalSamples: loggingData.length,
+                    sensitivitiesTested: Object.keys(loggingData[0]?.processedData || {}),
+                    timestamp: new Date().toISOString()
+                },
+                rawData: loggingData,
+                analysis: analysis
+            };
+
+            downloadJSON(fullData, `audio-debug-full-${timestamp}.json`);
+            
+            // Summary report
+            const summary = {
+                metadata: fullData.metadata,
+                analysis: analysis,
+                summary: {
+                    totalClippingEvents: analysis.clippingEvents.length,
+                    averageLevels: analysis.averageLevels,
+                    peakValues: analysis.peakValues,
+                    valueRanges: analysis.valueRanges
+                }
+            };
+            
+            downloadJSON(summary, `audio-debug-summary-${timestamp}.json`);
+            
+            // Human-readable report
+            const textReport = generateTextReport(analysis, fullData.metadata);
+            downloadText(textReport, `audio-debug-report-${timestamp}.txt`);
+
+            log(`Audio logging complete! Downloaded ${loggingData.length} data points`);
+            document.getElementById('loggingStatus').textContent = 'Logging complete - Files downloaded';
+        }
+
+        function generateAnalysisReport(data) {
+            const sensitivities = Object.keys(data[0]?.processedData || {});
+            const analysis = {
+                clippingEvents: [],
+                averageLevels: {},
+                peakValues: {},
+                valueRanges: {},
+                frequencyAnalysis: {
+                    bass: { min: Infinity, max: -Infinity, avg: 0 },
+                    mid: { min: Infinity, max: -Infinity, avg: 0 },
+                    treble: { min: Infinity, max: -Infinity, avg: 0 }
+                }
+            };
+
+            // Analyze each sensitivity
+            sensitivities.forEach(sens => {
+                const values = data.map(d => d.processedData[sens].values).flat();
+                analysis.averageLevels[sens] = values.reduce((a, b) => a + b, 0) / values.length;
+                analysis.peakValues[sens] = Math.max(...values);
+                analysis.valueRanges[sens] = {
+                    min: Math.min(...values),
+                    max: Math.max(...values)
+                };
+
+                // Find clipping events
+                data.forEach((entry, index) => {
+                    if (entry.processedData[sens].max > 1.0) {
+                        analysis.clippingEvents.push({
+                            sensitivity: sens,
+                            time: entry.elapsed,
+                            value: entry.processedData[sens].max,
+                            index: index
+                        });
+                    }
+                });
+            });
+
+            // Frequency band analysis
+            data.forEach(entry => {
+                analysis.frequencyAnalysis.bass.min = Math.min(analysis.frequencyAnalysis.bass.min, entry.frequencyBands.bass);
+                analysis.frequencyAnalysis.bass.max = Math.max(analysis.frequencyAnalysis.bass.max, entry.frequencyBands.bass);
+                analysis.frequencyAnalysis.bass.avg += entry.frequencyBands.bass;
+
+                analysis.frequencyAnalysis.mid.min = Math.min(analysis.frequencyAnalysis.mid.min, entry.frequencyBands.mid);
+                analysis.frequencyAnalysis.mid.max = Math.max(analysis.frequencyAnalysis.mid.max, entry.frequencyBands.mid);
+                analysis.frequencyAnalysis.mid.avg += entry.frequencyBands.mid;
+
+                analysis.frequencyAnalysis.treble.min = Math.min(analysis.frequencyAnalysis.treble.min, entry.frequencyBands.treble);
+                analysis.frequencyAnalysis.treble.max = Math.max(analysis.frequencyAnalysis.treble.max, entry.frequencyBands.treble);
+                analysis.frequencyAnalysis.treble.avg += entry.frequencyBands.treble;
+            });
+
+            const dataLength = data.length || 1;
+            analysis.frequencyAnalysis.bass.avg /= dataLength;
+            analysis.frequencyAnalysis.mid.avg /= dataLength;
+            analysis.frequencyAnalysis.treble.avg /= dataLength;
+
+            return analysis;
+        }
+
+        function generateTextReport(analysis, metadata) {
+            let report = `Audio Debug Analysis Report
+Generated: ${metadata.timestamp}
+Duration: ${metadata.duration} seconds
+Samples: ${metadata.totalSamples}
+Sensitivities Tested: ${metadata.sensitivitiesTested.join(', ')}
+
+=== FREQUENCY BAND ANALYSIS ===
+Bass (0-4): Min=${analysis.frequencyAnalysis.bass.min.toFixed(2)}, Max=${analysis.frequencyAnalysis.bass.max.toFixed(2)}, Avg=${analysis.frequencyAnalysis.bass.avg.toFixed(2)}
+Mid (5-64): Min=${analysis.frequencyAnalysis.mid.min.toFixed(2)}, Max=${analysis.frequencyAnalysis.mid.max.toFixed(2)}, Avg=${analysis.frequencyAnalysis.mid.avg.toFixed(2)}
+Treble (65+): Min=${analysis.frequencyAnalysis.treble.min.toFixed(2)}, Max=${analysis.frequencyAnalysis.treble.max.toFixed(2)}, Avg=${analysis.frequencyAnalysis.treble.avg.toFixed(2)}
+
+=== SENSITIVITY ANALYSIS ===
+`;
+
+            metadata.sensitivitiesTested.forEach(sens => {
+                report += `
+Sensitivity ${sens}:
+  Average Level: ${analysis.averageLevels[sens]?.toFixed(3) || 'N/A'}
+  Peak Value: ${analysis.peakValues[sens]?.toFixed(3) || 'N/A'}
+  Range: ${analysis.valueRanges[sens]?.min.toFixed(3) || 'N/A'} - ${analysis.valueRanges[sens]?.max.toFixed(3) || 'N/A'}
+  Clipping Events: ${analysis.clippingEvents.filter(e => e.sensitivity === sens).length}
+`;
+            });
+
+            report += `
+=== CLIPPING EVENTS ===
+Total: ${analysis.clippingEvents.length}
+`;
+            
+            if (analysis.clippingEvents.length > 0) {
+                analysis.clippingEvents.slice(0, 10).forEach(event => {
+                    report += `Time: ${event.time.toFixed(2)}s, Sensitivity: ${event.sensitivity}, Value: ${event.value.toFixed(3)}\n`;
+                });
+                if (analysis.clippingEvents.length > 10) {
+                    report += `... and ${analysis.clippingEvents.length - 10} more events\n`;
+                }
+            }
+
+            return report;
+        }
+
+        function downloadJSON(data, filename) {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadText(text, filename) {
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Make functions available globally
+        window.runSystemCheck = runSystemCheck;
+        window.loadAudioFile = loadAudioFile;
+        window.playPause = playPause;
+        window.stopAudio = stopAudio;
+        window.clearLog = clearLog;
+        window.changeShader = changeShader;
+        window.updateSensitivity = updateSensitivity;
+        window.startAudioLogging = startAudioLogging;
+        window.stopAudioLogging = stopAudioLogging;
+
+        window.toggleDebug = () => {
             const debugSection = document.querySelector('.diagnostic-section:last-child');
             debugSection.style.display = debugSection.style.display === 'none' ? 'block' : 'none';
-        }
+        };
 
         // Initialize on load
         document.getElementById('audioFile').addEventListener('change', () => {

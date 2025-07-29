@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shader Fix Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid #333;
+            display: block;
+            margin: 20px 0;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            background: #333;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #555;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: #222;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Shader Fix Test</h1>
+    <div class="status" id="status">Initializing...</div>
+    <canvas id="test-canvas" width="800" height="600"></canvas>
+    <div class="controls">
+        <button onclick="testWithAudio()">Test with Audio Data</button>
+        <button onclick="testWithoutAudio()">Test without Audio Data</button>
+        <button onclick="testWithZeroAudio()">Test with Zero Audio Data</button>
+    </div>
+
+    <script type="module">
+        import { ShaderManager } from './rendering/shader-manager.js';
+        import { WebGLRenderer } from './rendering/webgl-renderer.js';
+
+        const canvas = document.getElementById('test-canvas');
+        const status = document.getElementById('status');
+        let gl, shaderManager, renderer;
+        let animationId = null;
+
+        async function init() {
+            try {
+                gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (!gl) {
+                    throw new Error('WebGL not supported');
+                }
+
+                shaderManager = new ShaderManager(gl);
+                await shaderManager.loadShaders();
+                
+                renderer = new WebGLRenderer(gl, shaderManager);
+                renderer.initialize();
+                
+                status.textContent = 'Initialized successfully';
+                console.log('Test initialized');
+            } catch (error) {
+                status.textContent = 'Error: ' + error.message;
+                console.error('Init error:', error);
+            }
+        }
+
+        function createTestAudioData(type) {
+            const data = new Uint8Array(256);
+            
+            switch(type) {
+                case 'withAudio':
+                    // Create realistic audio data
+                    for (let i = 0; i < 256; i++) {
+                        if (i < 10) {
+                            data[i] = Math.floor(Math.random() * 200 + 55); // Bass
+                        } else if (i < 64) {
+                            data[i] = Math.floor(Math.random() * 150 + 50); // Mid
+                        } else {
+                            data[i] = Math.floor(Math.random() * 100 + 30); // Treble
+                        }
+                    }
+                    break;
+                case 'withoutAudio':
+                    // Leave as zeros
+                    break;
+                case 'zeroAudio':
+                    // All zeros
+                    data.fill(0);
+                    break;
+            }
+            
+            return data;
+        }
+
+        function testWithAudio() {
+            if (!renderer) {
+                status.textContent = 'Not initialized';
+                return;
+            }
+            
+            const audioData = createTestAudioData('withAudio');
+            status.textContent = 'Testing with audio data...';
+            
+            function render() {
+                renderer.render(audioData);
+                animationId = requestAnimationFrame(render);
+            }
+            
+            if (animationId) cancelAnimationFrame(animationId);
+            render();
+        }
+
+        function testWithoutAudio() {
+            if (!renderer) {
+                status.textContent = 'Not initialized';
+                return;
+            }
+            
+            const audioData = createTestAudioData('withoutAudio');
+            status.textContent = 'Testing without audio data...';
+            
+            function render() {
+                renderer.render(audioData);
+                animationId = requestAnimationFrame(render);
+            }
+            
+            if (animationId) cancelAnimationFrame(animationId);
+            render();
+        }
+
+        function testWithZeroAudio() {
+            if (!renderer) {
+                status.textContent = 'Not initialized';
+                return;
+            }
+            
+            const audioData = createTestAudioData('zeroAudio');
+            status.textContent = 'Testing with zero audio data...';
+            
+            function render() {
+                renderer.render(audioData);
+                animationId = requestAnimationFrame(render);
+            }
+            
+            if (animationId) cancelAnimationFrame(animationId);
+            render();
+        }
+
+        // Make functions global
+        window.testWithAudio = testWithAudio;
+        window.testWithoutAudio = testWithoutAudio;
+        window.testWithZeroAudio = testWithZeroAudio;
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>
