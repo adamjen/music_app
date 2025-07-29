@@ -18,6 +18,7 @@ export class ShaderManager {
             const shaderNames = ['base', 'spectrum', 'waves'];
             
             for (const name of shaderNames) {
+                console.log(`Loading shaders for: ${name}`);
                 const vertexShader = await this.loadShader(`shaders/${name}.vert`, 'vertex');
                 const fragmentShader = await this.loadShader(`shaders/${name}.frag`, 'fragment');
                 
@@ -27,6 +28,7 @@ export class ShaderManager {
                         const baseFragment = await this.loadShader('shaders/base.frag', 'fragment');
                         if (baseVertex && baseFragment) {
                             this.shaderPrograms[name] = this.createProgram(baseVertex, baseFragment);
+                            console.log(`Fallback to base shader for: ${name}`);
                         }
                     }
                     ErrorHandler.logWarning(`Failed to load shaders for ${name}`, 'Load Shaders');
@@ -38,8 +40,11 @@ export class ShaderManager {
                 if (this.shaderPrograms[name]) {
                     const resourceManager = ResourceManager.getInstance();
                     resourceManager.registerWebGLResource(this.shaderPrograms[name], 'program');
+                    console.log(`Successfully loaded shader: ${name}`);
                 }
             }
+            
+            console.log('Available shaders:', Object.keys(this.shaderPrograms));
         } catch (error) {
             ErrorHandler.handleError(error, 'Load Shaders', true);
         }

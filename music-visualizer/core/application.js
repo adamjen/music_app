@@ -305,8 +305,15 @@ export class Application {
 
     handleShaderChange(event) {
         const shaderName = event.target.value;
+        console.log('Shader changed to:', shaderName);
         this.shaderManager.setCurrentShader(shaderName);
         this.uiManager.updateShaderControls(shaderName);
+        
+        // Force immediate shader change by rebinding the program
+        if (this.renderer) {
+            this.renderer.forceShaderRebind();
+            console.log('Shader program rebound:', shaderName);
+        }
     }
 
     handleResize() {

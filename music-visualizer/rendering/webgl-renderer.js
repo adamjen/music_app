@@ -92,4 +92,12 @@ export class WebGLRenderer {
     getVertexBuffer() {
         return this.vertexBuffer;
     }
+
+    forceShaderRebind() {
+        // Force rebind of the current shader program
+        const currentProgram = this.shaderManager.getCurrentProgram();
+        if (currentProgram && this.gl) {
+            this.gl.useProgram(currentProgram);
+        }
+    }
 }

@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Diagnostic - Music Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .diagnostic-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success { background: #28a745; color: white; }
+        .error { background: #dc3545; color: white; }
+        .info { background: #17a2b8; color: white; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        #visualizer-canvas {
+            border: 1px solid #444;
+            background: #000;
+            display: block;
+            margin: 10px 0;
+        }
+        #debug-log {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #111;
+            padding: 10px;
+            border: 1px solid #444;
+            font-family: monospace;
+            font-size: 12px;
+            color: #0f0;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .audio-data {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .audio-value {
+            background: #333;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        select {
+            padding: 5px;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Visual Diagnostic - Music Visualizer</h1>
+        
+        <div class="diagnostic-section">
+            <h2>System Status</h2>
+            <div id="systemStatus" class="status info">Initializing...</div>
+            <div class="controls">
+                <button onclick="runSystemCheck()">Check System</button>
+                <button onclick="toggleDebug()">Toggle Debug</button>
+            </div>
+        </div>
+
+        <div class="diagnostic-section">
+            <h2>Audio Input</h2>
+            <input type="file" id="audioFile" accept="audio/*">
+            <button onclick="loadAudioFile()" id="loadBtn" disabled>Load Audio</button>
+            <button onclick="playPause()" id="playBtn" disabled>Play</button>
+            <button onclick="stopAudio()" id="stopBtn" disabled>Stop</button>
+            <div id="audioStatus" class="status info">Select an audio file</div>
+        </div>
+
+        <div class="diagnostic-section">
+            <h2>Shader Testing</h2>
+            <div class="controls">
+                <label>Shader:</label>
+                <select id="shaderSelect" onchange="changeShader()">
+                    <option value="base">Base</option>
+                    <option value="spectrum">Spectrum</option>
+                    <option value="waves">Waves</option>
+                </select>
+                <label>Audio Sensitivity:</label>
+                <input type="range" id="sensitivity" min="0.1" max="5" value="1" step="0.1" onchange="updateSensitivity()">
+                <span id="sensitivityValue">1.0</span>
+            </div>
+            <canvas id="visualizer-canvas" width="800" height="600"></canvas>
+        </div>
+
+        <div class="diagnostic-section">
+            <h2>Audio Data Debug</h2>
+            <div class="audio-data">
+                <div class="audio-value">
+                    <strong>Audio Level:</strong><br>
+                    <span id="audioLevel">0</span>
+                </div>
+                <div class="audio-value">
+                    <strong>Bass (0-4):</strong><br>
+                    <span id="bassLevel">0</span>
+                </div>
+                <div class="audio-value">
+                    <strong>Mid (5-64):</strong><br>
+                    <span id="midLevel">0</span>
+                </div>
+                <div class="audio-value">
+                    <strong>Treble (65+):</strong><br>
+                    <span id="trebleLevel">0</span>
+                </div>
+                <div class="audio-value">
+                    <strong>Max Frequency:</strong><br>
+                    <span id="maxFreq">0</span>
+                </div>
+                <div class="audio-value">
+                    <strong>Active Shader:</strong><br>
+                    <span id="activeShader">base</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="diagnostic-section">
+            <h2>Debug Log</h2>
+            <div id="debug-log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ErrorHandler } from './utils/error-handler.js';
+        import { CanvasManager } from './utils/canvas-manager.js';
+        import { ShaderManager } from './rendering/shader-manager.js';
+        import { WebGLRenderer } from './rendering/webgl-renderer.js';
+        import { AudioContextManager } from './audio/context-manager.js';
+        import { AudioSession } from './audio/audio-session.js';
+
+        let audioContext = null;
+        let audioSession = null;
+        let canvasManager = null;
+        let shaderManager = null;
+        let renderer = null;
+        let analyser = null;
+        let source = null;
+        let isPlaying = false;
+        let animationId = null;
+        let audioData = new Uint8Array(256);
+        let sensitivity = 1.0;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('debug-log');
+            const entry = document.createElement('div');
+            entry.style.color = type === 'error' ? '#ff6666' : type === 'success' ? '#66ff66' : '#66ccff';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function updateStatus(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status ${isError ? 'error' : 'success'}`;
+        }
+
+        async function runSystemCheck() {
+            log('Running comprehensive system check...');
+            
+            try {
+                // Check Web Audio API
+                if (!window.AudioContext && !window.webkitAudioContext) {
+                    throw new Error('Web Audio API not supported');
+                }
+                log('✅ Web Audio API supported');
+
+                // Check WebGL
+                const canvas = document.getElementById('visualizer-canvas');
+                const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+                if (!gl) {
+                    throw new Error('WebGL not supported');
+                }
+                log('✅ WebGL supported');
+
+                // Initialize components
+                canvasManager = new CanvasManager(canvas);
+                const webgl = canvasManager.initializeWebGL();
+                if (!webgl) throw new Error('Failed to initialize WebGL');
+
+                shaderManager = new ShaderManager(webgl);
+                await shaderManager.loadShaders();
+                log('✅ Shaders loaded');
+
+                renderer = new WebGLRenderer(webgl, shaderManager);
+                renderer.initialize();
+                log('✅ Renderer initialized');
+
+                audioContextManager = new AudioContextManager();
+                await audioContextManager.initialize();
+                log('✅ Audio context initialized');
+
+                audioSession = new AudioSession(audioContextManager.getContext());
+                log('✅ Audio session ready');
+
+                updateStatus('systemStatus', 'System ready for testing');
+                
+                document.getElementById('loadBtn').disabled = false;
+                
+            } catch (error) {
+                log(`System check failed: ${error.message}`, 'error');
+                updateStatus('systemStatus', `System error: ${error.message}`, true);
+            }
+        }
+
+        async function loadAudioFile() {
+            const fileInput = document.getElementById('audioFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                updateStatus('audioStatus', 'No file selected', true);
+                return;
+            }
+
+            log(`Loading audio file: ${file.name}`);
+            updateStatus('audioStatus', 'Loading audio...');
+
+            try {
+                await audioSession.handleFileSelect({ target: { files: [file] } });
+                log('Audio file loaded successfully');
+                updateStatus('audioStatus', 'Audio loaded - Ready to play');
+                
+                document.getElementById('playBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = false;
+                
+            } catch (error) {
+                log(`Failed to load audio: ${error.message}`, 'error');
+                updateStatus('audioStatus', `Load failed: ${error.message}`, true);
+            }
+        }
+
+        async function playPause() {
+            if (!audioSession.hasFiles()) {
+                updateStatus('audioStatus', 'No audio loaded', true);
+                return;
+            }
+
+            try {
+                if (isPlaying) {
+                    // Stop current playback
+                    if (source) {
+                        source.stop();
+                        source = null;
+                    }
+                    isPlaying = false;
+                    document.getElementById('playBtn').textContent = 'Play';
+                    updateStatus('audioStatus', 'Stopped');
+                    stopRenderLoop();
+                } else {
+                    // Start playback
+                    const audioBuffer = audioSession.getCurrentAudioBuffer();
+                    if (!audioBuffer) {
+                        await audioSession.loadFileAtIndex(0);
+                    }
+
+                    const audioContext = audioContextManager.getContext();
+                    source = audioContext.createBufferSource();
+                    analyser = audioContext.createAnalyser();
+                    
+                    analyser.fftSize = 512;
+                    source.buffer = audioSession.getCurrentAudioBuffer();
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+                    
+                    audioData = new Uint8Array(analyser.frequencyBinCount);
+                    
+                    source.start();
+                    isPlaying = true;
+                    document.getElementById('playBtn').textContent = 'Pause';
+                    updateStatus('audioStatus', 'Playing');
+                    startRenderLoop();
+                }
+            } catch (error) {
+                log(`Playback error: ${error.message}`, 'error');
+                updateStatus('audioStatus', `Playback error: ${error.message}`, true);
+            }
+        }
+
+        function stopAudio() {
+            if (source) {
+                try {
+                    source.stop();
+                } catch (e) {
+                    log('Stop error (may already be stopped)', 'warning');
+                }
+                source = null;
+            }
+            isPlaying = false;
+            document.getElementById('playBtn').textContent = 'Play';
+            updateStatus('audioStatus', 'Stopped');
+            stopRenderLoop();
+        }
+
+        function startRenderLoop() {
+            if (animationId) return;
+
+            const render = () => {
+                try {
+                    if (analyser && isPlaying) {
+                        analyser.getByteFrequencyData(audioData);
+                        
+                        // Update debug displays
+                        updateAudioDebug();
+                        
+                        // Update shader uniforms
+                        shaderManager.updateUniforms(
+                            canvasManager.getResolution(),
+                            audioData.map(v => v / 255.0 * sensitivity)
+                        );
+                    }
+
+                    renderer.render(audioData);
+                    animationId = requestAnimationFrame(render);
+                } catch (error) {
+                    log(`Render error: ${error.message}`, 'error');
+                    stopRenderLoop();
+                }
+            };
+
+            render();
+        }
+
+        function stopRenderLoop() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+
+        function updateAudioDebug() {
+            if (!audioData || audioData.length === 0) return;
+
+            const bass = audioData.slice(0, 5).reduce((a, b) => a + b, 0) / 5;
+            const mid = audioData.slice(5, 64).reduce((a, b) => a + b, 0) / 59;
+            const treble = audioData.slice(64).reduce((a, b) => a + b, 0) / (audioData.length - 64);
+            const maxFreq = Math.max(...audioData);
+
+            document.getElementById('audioLevel').textContent = (audioData.reduce((a, b) => a + b, 0) / audioData.length).toFixed(1);
+            document.getElementById('bassLevel').textContent = bass.toFixed(1);
+            document.getElementById('midLevel').textContent = mid.toFixed(1);
+            document.getElementById('trebleLevel').textContent = treble.toFixed(1);
+            document.getElementById('maxFreq').textContent = maxFreq;
+        }
+
+        function changeShader() {
+            const shaderName = document.getElementById('shaderSelect').value;
+            if (shaderManager) {
+                shaderManager.setCurrentShader(shaderName);
+                document.getElementById('activeShader').textContent = shaderName;
+                log(`Changed shader to: ${shaderName}`);
+            }
+        }
+
+        function updateSensitivity() {
+            sensitivity = parseFloat(document.getElementById('sensitivity').value);
+            document.getElementById('sensitivityValue').textContent = sensitivity.toFixed(1);
+        }
+
+        function clearLog() {
+            document.getElementById('debug-log').innerHTML = '';
+        }
+
+        function toggleDebug() {
+            const debugSection = document.querySelector('.diagnostic-section:last-child');
+            debugSection.style.display = debugSection.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // Initialize on load
+        document.getElementById('audioFile').addEventListener('change', () => {
+            document.getElementById('loadBtn').disabled = false;
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (canvasManager) {
+                canvasManager.resizeCanvas();
+                if (shaderManager) {
+                    shaderManager.updateResolution(canvasManager.getResolution());
+                }
+            }
+        });
+
+        log('Diagnostic page loaded - Ready for testing');
+    </script>
+</body>
+</html>
