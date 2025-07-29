@@ -8,14 +8,15 @@ export class ShaderManager {
         this.uniforms = {
             base: { u_time: 0, u_resolution: [0, 0], u_audioData: new Float32Array(256) },
             spectrum: { u_time: 0, u_resolution: [0, 0], u_audioData: new Float32Array(256) },
-            waves: { u_time: 0, u_resolution: [0, 0], u_audioData: new Float32Array(256) }
+            waves: { u_time: 0, u_resolution: [0, 0], u_audioData: new Float32Array(256) },
+            bars: { u_time: 0, u_resolution: [0, 0], u_audioData: new Float32Array(256) }
         };
         this.currentShader = 'base';
     }
 
     async loadShaders() {
         try {
-            const shaderNames = ['base', 'spectrum', 'waves'];
+            const shaderNames = ['base', 'spectrum', 'waves', 'bars'];
             
             for (const name of shaderNames) {
                 console.log(`Loading shaders for: ${name}`);
@@ -94,7 +95,7 @@ export class ShaderManager {
             return program;
         } catch (error) {
             console.error('Error creating program:', error);
-            ErrorHandler.handleError(error, 'Create Program', false);
+            ErrorHandler.createProgram(error, 'Create Program', false);
             return null;
         }
     }

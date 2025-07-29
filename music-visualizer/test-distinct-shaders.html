@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distinct Shader Test</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        .shader-container {
+            flex: 1;
+            position: relative;
+            border: 2px solid #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .label {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 10;
+        }
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        button {
+            margin: 0 5px;
+            padding: 5px 10px;
+            background: #333;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="shader-container">
+            <canvas id="baseCanvas"></canvas>
+            <div class="label">Cosmic Galaxy (Base Shader)</div>
+            <div class="controls">
+                <button onclick="switchToBase()">Base</button>
+                <button onclick="switchToBars()">Bars</button>
+            </div>
+        </div>
+        <div class="shader-container">
+            <canvas id="barsCanvas"></canvas>
+            <div class="label">Neon Bars (Bars Shader)</div>
+            <div class="controls">
+                <button onclick="switchToBars()">Bars</button>
+                <button onclick="switchToBase()">Base</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ShaderManager } from './rendering/shader-manager.js';
+        import { WebGLRenderer } from './rendering/webgl-renderer.js';
+        import { AudioContextManager } from './audio/context-manager.js';
+        import { AudioAnalyzer } from './audio/analyzer.js';
+
+        let baseRenderer, barsRenderer;
+        let baseShaderManager, barsShaderManager;
+        let audioContext, analyser;
+        let audioData = new Float32Array(256);
+
+        async function init() {
+            // Initialize audio
+            audioContext = new AudioContextManager();
+            await audioContext.initialize();
+            analyser = new AudioAnalyzer(audioContext.context);
+            
+            // Create oscillator for testing
+            const oscillator = audioContext.context.createOscillator();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(440, audioContext.context.currentTime);
+            const gainNode = audioContext.context.createGain();
+            gainNode.gain.setValueAtTime(0.3, audioContext.context.currentTime);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(analyser.analyser);
+            oscillator.start();
+            
+            // Setup base shader
+            const baseCanvas = document.getElementById('baseCanvas');
+            const baseGl = baseCanvas.getContext('webgl');
+            baseShaderManager = new ShaderManager(baseGl);
+            await baseShaderManager.initialize();
+            baseRenderer = new WebGLRenderer(baseGl, baseShaderManager);
+            baseRenderer.initialize();
+            
+            // Setup bars shader
+            const barsCanvas = document.getElementById('barsCanvas');
+            const barsGl = barsCanvas.getContext('webgl');
+            barsShaderManager = new ShaderManager(barsGl);
+            await barsShaderManager.initialize();
+            barsRenderer = new WebGLRenderer(barsGl, barsShaderManager);
+            barsRenderer.initialize();
+            
+            // Set initial shaders
+            baseShaderManager.setShader('base');
+            barsShaderManager.setShader('bars');
+            
+            // Resize canvases
+            function resizeCanvases() {
+                const containers = document.querySelectorAll('.shader-container');
+                containers.forEach((container, index) => {
+                    const canvas = index === 0 ? baseCanvas : barsCanvas;
+                    const gl = index === 0 ? baseGl : barsGl;
+                    
+                    const rect = container.getBoundingClientRect();
+                    canvas.width = rect.width;
+                    canvas.height = rect.height;
+                    gl.viewport(0, 0, canvas.width, canvas.height);
+                });
+            }
+            
+            resizeCanvases();
+            window.addEventListener('resize', resizeCanvases);
+            
+            // Animation loop
+            function animate() {
+                // Get audio data
+                analyser.analyser.getFloatFrequencyData(audioData);
+                
+                // Convert to 0-1 range
+                for (let i = 0; i < audioData.length; i++) {
+                    audioData[i] = Math.max(0, (audioData[i] + 100) / 100);
+                }
+                
+                // Update uniforms
+                baseShaderManager.updateUniforms(audioData, performance.now() * 0.001);
+                barsShaderManager.updateUniforms(audioData, performance.now() * 0.001);
+                
+                // Render
+                baseRenderer.render(audioData);
+                barsRenderer.render(audioData);
+                
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
+
+        function switchToBase() {
+            baseShaderManager.setShader('base');
+            barsShaderManager.setShader('base');
+        }
+
+        function switchToBars() {
+            baseShaderManager.setShader('bars');
+            barsShaderManager.setShader('bars');
+        }
+
+        window.switchToBase = switchToBase;
+        window.switchToBars = switchToBars;
+
+        init().catch(console.error);
+    </script>
+</body>
+</html>

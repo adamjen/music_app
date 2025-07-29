@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shader Fix Test Suite</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #111;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        .test-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 8px;
+            background: #222;
+        }
+        canvas {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+        .controls {
+            margin: 10px 0;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0088ff;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { background: #004400; border: 1px solid #00aa00; }
+        .error { background: #440000; border: 1px solid #aa0000; }
+        .info { background: #004444; border: 1px solid #00aaaa; }
+    </style>
+</head>
+<body>
+    <h1>Shader Fix Test Suite</h1>
+    
+    <div class="test-container">
+        <div class="test-section">
+            <h3>Base Shader Test</h3>
+            <canvas id="baseCanvas"></canvas>
+            <div class="controls">
+                <button onclick="testShader('base')">Test Base Shader</button>
+                <button onclick="generateTestAudio()">Generate Test Audio</button>
+            </div>
+            <div id="baseStatus" class="status info">Ready</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Bars Shader Test</h3>
+            <canvas id="barsCanvas"></canvas>
+            <div class="controls">
+                <button onclick="testShader('bars')">Test Bars Shader</button>
+                <button onclick="generateTestAudio()">Generate Test Audio</button>
+            </div>
+            <div id="barsStatus" class="status info">Ready</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Spectrum Shader Test</h3>
+            <canvas id="spectrumCanvas"></canvas>
+            <div class="controls">
+                <button onclick="testShader('spectrum')">Test Spectrum Shader</button>
+                <button onclick="generateTestAudio()">Generate Test Audio</button>
+            </div>
+            <div id="spectrumStatus" class="status info">Ready</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Waves Shader Test</h3>
+            <canvas id="wavesCanvas"></canvas>
+            <div class="controls">
+                <button onclick="testShader('waves')">Test Waves Shader</button>
+                <button onclick="generateTestAudio()">Generate Test Audio</button>
+            </div>
+            <div id="wavesStatus" class="status info">Ready</div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Audio Debug Test</h3>
+        <div class="controls">
+            <button onclick="runAudioDebug()">Run Audio Debug Analysis</button>
+            <button onclick="clearDebug()">Clear Debug</button>
+        </div>
+        <div id="debugStatus" class="status info">Ready</div>
+        <pre id="debugOutput"></pre>
+    </div>
+
+    <script type="module">
+        import { ShaderManager } from './rendering/shader-manager.js';
+        import { WebGLRenderer } from './rendering/webgl-renderer.js';
+        import { AudioDebugLogger } from './audio-debug-logger.js';
+
+        let glContexts = {};
+        let shaderManagers = {};
+        let renderers = {};
+        let debugLogger = null;
+        let testAudioData = new Float32Array(256);
+
+        // Initialize test environment
+        async function initializeTests() {
+            const shaders = ['base', 'bars', 'spectrum', 'waves'];
+            
+            for (const shader of shaders) {
+                const canvas = document.getElementById(`${shader}Canvas`);
+                const gl = canvas.getContext('webgl');
+                
+                if (!gl) {
+                    updateStatus(shader, 'WebGL not supported', 'error');
+                    continue;
+                }
+                
+                glContexts[shader] = gl;
+                shaderManagers[shader] = new ShaderManager(gl);
+                renderers[shader] = new WebGLRenderer(gl, shaderManagers[shader]);
+                
+                try {
+                    await shaderManagers[shader].loadShaders();
+                    renderers[shader].initialize();
+                    updateStatus(shader, `${shader} shader loaded successfully`, 'success');
+                } catch (error) {
+                    updateStatus(shader, `Error loading ${shader}: ${error.message}`, 'error');
+                }
+            }
+            
+            // Initialize debug logger
+            debugLogger = new AudioDebugLogger(null);
+        }
+
+        function updateStatus(shader, message, type) {
+            const statusEl = document.getElementById(`${shader}Status`);
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        function generateTestAudio() {
+            // Generate realistic test audio data
+            for (let i = 0; i < 256; i++) {
+                const freq = i / 256.0;
+                const bass = Math.sin(freq * Math.PI * 0.1) * 0.8 + 0.2;
+                const mid = Math.sin(freq * Math.PI * 2.0) * 0.5 + 0.5;
+                const treble = Math.sin(freq * Math.PI * 8.0) * 0.3 + 0.2;
+                
+                if (i < 10) {
+                    testAudioData[i] = bass * Math.random();
+                } else if (i < 64) {
+                    testAudioData[i] = mid * Math.random();
+                } else {
+                    testAudioData[i] = treble * Math.random();
+                }
+            }
+            
+            // Add some dynamic variation
+            const time = Date.now() * 0.001;
+            for (let i = 0; i < 256; i++) {
+                testAudioData[i] *= 0.5 + 0.5 * Math.sin(time + i * 0.1);
+            }
+            
+            updateStatus('debug', 'Test audio generated', 'success');
+        }
+
+        async function testShader(shaderName) {
+            const canvas = document.getElementById(`${shaderName}Canvas`);
+            const gl = glContexts[shaderName];
+            const shaderManager = shaderManagers[shaderName];
+            const renderer = renderers[shaderName];
+            
+            if (!gl || !shaderManager || !renderer) {
+                updateStatus(shaderName, 'Shader not initialized', 'error');
+                return;
+            }
+            
+            try {
+                shaderManager.setCurrentShader(shaderName);
+                shaderManager.updateResolution([canvas.width, canvas.height]);
+                shaderManager.updateUniforms([canvas.width, canvas.height], testAudioData);
+                
+                renderer.render(testAudioData);
+                updateStatus(shaderName, `${shaderName} shader rendered successfully`, 'success');
+            } catch (error) {
+                updateStatus(shaderName, `Error rendering ${shaderName}: ${error.message}`, 'error');
+            }
+        }
+
+        async function runAudioDebug() {
+            const debugStatus = document.getElementById('debugStatus');
+            const debugOutput = document.getElementById('debugOutput');
+            
+            debugStatus.textContent = 'Running audio debug...';
+            debugStatus.className = 'status info';
+            
+            try {
+                // Create a mock analyser for testing
+                const mockAnalyser = {
+                    frequencyBinCount: 256,
+                    getByteFrequencyData: function(array) {
+                        for (let i = 0; i < array.length; i++) {
+                            array[i] = Math.floor(testAudioData[i] * 255);
+                        }
+                    }
+                };
+                
+                debugLogger = new AudioDebugLogger(mockAnalyser);
+                
+                // Run debug with different sensitivities
+                const sensitivities = [1, 2, 0.1, 0.5];
+                const debugPromise = debugLogger.startLogging(sensitivities);
+                
+                // Generate test audio during debug
+                const interval = setInterval(() => {
+                    generateTestAudio();
+                }, 100);
+                
+                setTimeout(() => {
+                    clearInterval(interval);
+                    debugLogger.stopLogging();
+                }, 5000);
+                
+                const results = await debugPromise;
+                
+                debugOutput.textContent = JSON.stringify(results, null, 2);
+                debugStatus.textContent = 'Audio debug completed';
+                debugStatus.className = 'status success';
+                
+            } catch (error) {
+                debugStatus.textContent = `Debug error: ${error.message}`;
+                debugStatus.className = 'status error';
+            }
+        }
+
+        function clearDebug() {
+            document.getElementById('debugOutput').textContent = '';
+            document.getElementById('debugStatus').textContent = 'Ready';
+            document.getElementById('debugStatus').className = 'status info';
+        }
+
+        // Initialize when page loads
+        window.addEventListener('load', initializeTests);
+        
+        // Make functions globally available
+        window.testShader = testShader;
+        window.generateTestAudio = generateTestAudio;
+        window.runAudioDebug = runAudioDebug;
+        window.clearDebug = clearDebug;
+    </script>
+</body>
+</html>
